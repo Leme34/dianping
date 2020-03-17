@@ -1,0 +1,48 @@
+// PUT /shop
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "tags": {
+        "type": "text",
+        "analyzer": "whitespace",  //空格分词器
+        "fielddata": true   //非常耗内存所以text field默认关闭，在需要根据 该字段的分词结果 排序, 聚合和访问字段值时开启
+      },
+      "location": {
+        "type": "geo_point"
+      },
+      "remark_score": {    //评分因子
+        "type": "double"
+      },
+      "price_per_man": {   //人均价格
+        "type": "integer"
+      },
+      "category_id": {
+        "type": "integer"
+      },
+      "category_name": {
+        "type": "keyword"
+      },
+      "seller_id": {      //商家id
+        "type": "integer"
+      },
+      "seller_remark_score": {  //商家评价
+        "type": "double"
+      },
+      "seller_disabled_flag": { //商家是否禁用
+        "type": "integer"
+      }
+    }
+  }
+}
