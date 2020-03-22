@@ -7,35 +7,27 @@ import com.imooc.dianping.dal.ShopModelMapper;
 import com.imooc.dianping.model.CategoryModel;
 import com.imooc.dianping.model.SellerModel;
 import com.imooc.dianping.model.ShopModel;
+import com.imooc.dianping.recommend.service.RecommendService;
 import com.imooc.dianping.service.CategoryService;
 import com.imooc.dianping.service.SellerService;
 import com.imooc.dianping.service.ShopService;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.json.GsonJsonParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 import org.thymeleaf.util.MapUtils;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,6 +45,8 @@ public class ShopServiceImpl implements ShopService {
     private RestHighLevelClient rhlClient;
     @Autowired
     private Gson gson;
+    @Autowired
+    private RecommendService recommendService;
 
     @Override
     @Transactional
@@ -103,11 +97,19 @@ public class ShopServiceImpl implements ShopService {
 
     @Override
     public List<ShopModel> recommend(BigDecimal longitude, BigDecimal latitude) {
-        List<ShopModel> shopModelList = shopModelMapper.recommend(longitude, latitude);
-        shopModelList.forEach(shopModel -> {
-            shopModel.setSellerModel(sellerService.get(shopModel.getSellerId()));
-            shopModel.setCategoryModel(categoryService.get(shopModel.getCategoryId()));
-        });
+        // ASL算法召回并使用LR算法排序
+        List<Integer> shopIdList = recommendService.recall(148);//TODO 此处传的应该是登录用户的id
+        shopIdList = recommendService.sort(shopIdList,148);//TODO 此处传的应该是登录用户的id
+        List<ShopModel> shopModelList = shopIdList.stream()
+                .map(this::get)
+                .collect(Collectors.toList());
+
+        // V1.0，根据用户地理位置按MySQL计算公式推荐
+//        List<ShopModel> shopModelList = shopModelMapper.recommend(longitude, latitude);
+//        shopModelList.forEach(shopModel -> {
+//            shopModel.setSellerModel(sellerService.get(shopModel.getSellerId()));
+//            shopModel.setCategoryModel(categoryService.get(shopModel.getCategoryId()));
+//        });
         return shopModelList;
     }
 
@@ -283,10 +285,11 @@ public class ShopServiceImpl implements ShopService {
         }
 
         final Map<String, Integer> categoryByKeyWordMap = this.analyzeCategoryByKeyWord(keyword);
-        // 相关性不能既影响召回又影响排序，一起使用会一起加分，导致召回的文档排序不符合需求
-        // 最佳实践：一般我们会选择放松召回规则（防止语义理解错误导致结果缺失），而是使用排序策略来提高搜索结果的相关性
-        boolean isAffectFilter = false; //相关性应用于召回策略的开关(使用should)
-        boolean isAffectOrder = true;   //相关性应用于排序策略的开关
+        // 相关性不能既影响召回又影响排序，一起使用会一起加分，导致召回的文档排序混乱不符合需求。
+        // 比如召回打分高达0.9但排序打分只有0.1，那再把两个评分相加就会破坏打分标杆。
+        // 最佳实践：一般我们不会选择作用于召回规则（防止语义理解错误导致过多无关的结果），而是使用排序策略来提高搜索结果的相关性
+        boolean isAffectFilter = true; //相关性应用于召回策略的开关(使用should)
+        boolean isAffectOrder = false;   //相关性应用于排序策略的开关
 
         if (isAffectFilter && !MapUtils.isEmpty(categoryByKeyWordMap)) {  //若影响召回打分，使用should
             final JsonObject bool = new JsonObject();
@@ -455,14 +458,15 @@ public class ShopServiceImpl implements ShopService {
 
     /**
      * 根据用户搜索词，找到相关的类目id
-     * 具体实现：先分析用户输入的搜索词，然后去人工标注得到的 categoryId与相关搜索词的映射 中找到对应的categoryId
+     * 具体实现：先分析用户输入的搜索词得到每个词条，然后去人工标注得到的 categoryId与相关搜索词的映射 中找到它们对应的categoryId
      *
-     * @return Map<>
+     * @return Map<用户搜索词分词token, categoryId>
      */
     private Map<String, Integer> analyzeCategoryByKeyWord(String keyword) {
         Map<String, Integer> resMap = new HashMap<>();
+        //用shop索引的name的分析器(已配置ik自定义词库和同义词词库)去得到分词结果
         AnalyzeRequest analyzeReq = AnalyzeRequest
-                .withField(INDEX_NAME, "name", keyword);     //被分析的内容
+                .withField(INDEX_NAME, "name", keyword);
         System.out.println(gson.toJson(analyzeReq));
         try {
             final AnalyzeResponse response = rhlClient.indices().analyze(analyzeReq, RequestOptions.DEFAULT);

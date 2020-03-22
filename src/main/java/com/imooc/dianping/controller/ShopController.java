@@ -30,7 +30,7 @@ public class ShopController {
     private CategoryService categoryService;
 
     /**
-     * 推荐服务V1.0，根据用户地理位置按MySQL计算公式推荐
+     * 推荐服务
      */
     @RequestMapping("/recommend")
     @ResponseBody

@@ -5,6 +5,7 @@ import com.imooc.dianping.model.UserModel;
 
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 
 
 public interface UserService {
@@ -16,4 +17,6 @@ public interface UserService {
     UserModel login(String telphone,String password) throws UnsupportedEncodingException, NoSuchAlgorithmException, BusinessException;
 
     Integer countAllUser();
+
+    List<UserModel> selectAll();
 }

@@ -15,6 +15,7 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.List;
 
 
 @Service
@@ -24,9 +25,15 @@ public class UserServiceImpl implements UserService {
     private UserModelMapper userModelMapper;
 
 
+
     @Override
     public UserModel getUser(Integer id) {
         return userModelMapper.selectByPrimaryKey(id);
+    }
+
+    @Override
+    public List<UserModel> selectAll() {
+        return userModelMapper.selectAll();
     }
 
     @Override
