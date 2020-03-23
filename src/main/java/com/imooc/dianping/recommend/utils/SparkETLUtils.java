@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  * 一个应用中只能持有一个SparkSession
- *
+ * <p>
  * Created by lsd
  * 2020-03-04 16:43
  */
@@ -31,8 +31,8 @@ public class SparkETLUtils {
     /**
      * 配置操作 Hive 和 ES 的SparkSession，一个应用中只能有一个SparkSession
      */
-    @Bean
-    public static SparkSession initSparkSession4ES() {
+//    @Bean
+    public SparkSession initSparkSession4ES() {
         // Setting Master for running it
         SparkConf sparkConf = new SparkConf()
                 .setAppName("spark-itags")
@@ -50,6 +50,15 @@ public class SparkETLUtils {
         return SparkSession.builder().config(sparkConf).enableHiveSupport().getOrCreate();
     }
 
+
+    /**
+     * 配置本地SparkSession，一个应用中只能有一个SparkSession
+     */
+    @Bean
+    public SparkSession initSparkSession4Local() {
+        System.setProperty("hadoop.home.dir", "D:/解决winutils.exe问题的Hadoop/hadoop-2.6.0/");
+        return SparkSession.builder().master("local").appName("dianping").getOrCreate();
+    }
 
     /**
      * 封装执行ETL SQL

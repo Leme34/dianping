@@ -8,8 +8,10 @@ import org.apache.spark.ml.linalg.Vector;
 import org.apache.spark.ml.linalg.Vectors;
 import org.apache.spark.sql.SparkSession;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -27,13 +29,22 @@ public class RecommendService {
     @Autowired
     private RecommendDOMapper recommendDOMapper;
     @Autowired
+    private ApplicationContext applicationContext;
     private SparkSession spark;
+    private LogisticRegressionModel lrModel;
+
+    @PostConstruct
+    public void init() {
+        spark = applicationContext.getBean(SparkSession.class);
+        //加载训练好的LR模型
+        lrModel = LogisticRegressionModel.load("file:///C:/Users/Administrator/Desktop/lrModel");
+    }
 
     /**
-     * ALS算法召回数据，根据userid召回shopidList
+     * ALS算法召回（推荐）商铺
      *
-     * @param userId
-     * @return
+     * @param userId 推荐目标用户
+     * @return 推荐商铺id列表
      */
     public List<Integer> recall(Integer userId) {
         RecommendDO recommendDO = recommendDOMapper.selectByPrimaryKey(userId);
@@ -52,13 +63,11 @@ public class RecommendService {
     /**
      * LR算法实现推荐数据的排序
      *
-     * @param shopIdList
-     * @param userId
-     * @return
+     * @param shopIdList （粗排后）待精排的推荐商铺
+     * @param userId     推荐目标用户
+     * @return 推荐商铺id列表
      */
     public List<Integer> sort(List<Integer> shopIdList, Integer userId) {
-        //加载训练好的LR模型
-        LogisticRegressionModel lrModel = LogisticRegressionModel.load("file:///Users/hzllb/Desktop/devtool/data/lrmode");
         //需要根据LR模型所需要11维的特征值x，做特征处理，然后调用其预测方法
         List<ShopSortModel> list = new ArrayList<>();
         for (Integer shopId : shopIdList) {
